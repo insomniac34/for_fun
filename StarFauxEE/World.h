@@ -11,6 +11,7 @@
 #include <string>
 #include <list>
 #include <memory>
+#include <algorithm>
 
 //C headers:
 #define _USE_MATH_DEFINES	
@@ -114,5 +115,6 @@ void spawnEnemy(GLdouble*);
 void NPCupdate();
 
 void arwing_setup();
+void updateFriendlies();
 void checkTriggers();
 void drawBillboards();

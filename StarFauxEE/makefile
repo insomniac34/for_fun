@@ -7,7 +7,7 @@ FLAGS=
 UNAME := $(shell uname)
 
 ifeq ($(UNAME), Linux)
-L_FLAGS=-L/usr/local/lib -lglut -lGL -lGLU
+L_FLAGS=-L/usr/local/lib -lglut -lGL -lGLU -std=c++11
 endif
 ifeq ($(UNAME), Darwin)
 L_FLAGS=-framework Foundation -framework AppKit -framework OpenGL -framework GLUT

@@ -41,7 +41,7 @@ public:
 	~Projectile();
 
 	void update();
-	void update(std::list<NPC*>*, GLfloat[3], float*); //accepts a queue of targets for intersect calculations
+	void update(std::list<NPC*>*, GLfloat[3], float*, std::list<NPC*>*); //accepts a queue of targets for intersect calculations
 	bool outOfRange();
 	Shape *getShape();
 	vec3 *getVector();

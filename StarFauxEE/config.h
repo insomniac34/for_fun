@@ -6,6 +6,7 @@ extern float NPC_WEAPON_DAMAGE;
 //openGL definitions 
 #define GL_WINDOW_WIDTH 1200 //i figured 800x600 is a good start point feel free to mess with any of these values -tyler
 #define GL_WINDOW_HEIGHT 800
+
 #define GL_FOV 60
 #define GL_ASPECT_RATIO 1.5
 #define GL_NEAR_CLIPPING_PLANE 1
@@ -16,12 +17,14 @@ extern float NPC_WEAPON_DAMAGE;
 #define LASER_SPEED_SLOW 10.0
 #define LASER_SPEED_MEDIUM 20.0
 #define LASER_SPEED_FAST 30.0
+
 #define TURN_RATE 5
 #define PI 3.14159265359
 #define RADS 0.0174532
 #define MAX_PROJECTILES 25
 #define MAX_STATIC_OBJECTS 50
 #define DEFAULT_SPEED -0.4
+
 #define FOLIAGE_DENSITY 100
 #define FOLIAGE_DENSITY_LOW 40
 
@@ -59,6 +62,14 @@ extern float NPC_WEAPON_DAMAGE;
 #define AI_COLONEL 1
 #define AI_GENERAL 0
 
+//AI movement speed definitions:
+#define FRIENDLY_DECEL_RATE 0.002 //was 0.002
+#define FRIENDLY_ACCEL_RATE 0.005 //was 0.005
+#define FRIENDLY_ALTITUDE_INCREASE_RATE 0.02
+#define FRIENDLY_ALTITUDE_DECREASE_RATE -0.02
+#define FRIENDLY_X_INCREASE_RATE 0.02
+#define FRIENDLY_X_DECREASE_RATE -0.02
+
 //DIFFICULTY:
 #define DIFFICULTY_LEVEL 1 //0 = easy
                            //1 = medium
@@ -75,3 +86,5 @@ extern float NPC_WEAPON_DAMAGE;
 #define POWERUP_SHIFT_AMT_X 0.0
 #define POWERUP_SHIFT_AMT_Y 0.05
 #define POWERUP_SHIFT_AMT_Z 0.0
+
+//#define ACTIVATE_CUTSCENE 0

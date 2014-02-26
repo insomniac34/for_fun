@@ -1,4 +1,8 @@
-//written by Tyler Raborn
+/* 
+ *                                         (C) 2014 Tyler Raborn
+ *
+ * 	This code is freely distributable under the GNU General Public License. See LICENSE.txt for more details.	       					
+ */				  
 
 #include "NPC.h"
 #include "Projectile.h"
@@ -80,7 +84,15 @@ Path *NPC::getPath()
 	return targetPath;
 }
 
-void NPC::update(GLfloat inc, std::deque<Projectile> *projectileList, GLfloat *playerPosition, int* player_kills, std::deque<PowerUp*> *powerUpList) //maybe .06???
+void NPC::update(
+	             GLfloat inc, 
+	             std::deque<Projectile> *projectileList,
+	             GLfloat *playerPosition, 
+	             int* player_kills, 
+	             std::deque<PowerUp*> *powerUpList, 
+	             std::list<NPC*> *hostileList, 
+	             std::list<NPC*> *friendList
+	            ) 
 {
 	if (this->health > 0)
 	{
@@ -93,8 +105,7 @@ void NPC::update(GLfloat inc, std::deque<Projectile> *projectileList, GLfloat *p
 		if (pathComplete == false)
 		{
 			GLfloat *curPos = targetShape->getPosition();
-
-			Vertex NPCposition(curPos);
+			Vertex NPCposition = Vertex(curPos);
 
 			if (NPCposition.getDistance(currentWaypoint) > 2.0)
 			{
@@ -115,11 +126,13 @@ void NPC::update(GLfloat inc, std::deque<Projectile> *projectileList, GLfloat *p
 					this->currentWaypoint[1] = this->waypointIterator->y;
 					this->currentWaypoint[2] = this->waypointIterator->z;	
 
-					//calculate direction vector & normalize
-					Vertex wpNext(currentWaypoint);
+					//calculate direction vector & normalize:
+					Vertex wpNext = Vertex(currentWaypoint);
+
 					this->currentDirection = vec3(wpNext, NPCposition);
-					vec3 *tempDir = currentDirection.normalize();
-					currentDirection = vec3(tempDir->x, tempDir->y, tempDir->z);
+					vec3 *tempDir = this->currentDirection.normalize();
+					this->currentDirection = vec3(tempDir->x, tempDir->y, tempDir->z);
+
 					delete tempDir;
 				}	
 				else 
@@ -145,7 +158,37 @@ void NPC::update(GLfloat inc, std::deque<Projectile> *projectileList, GLfloat *p
 			if ((fireCounter==0 || fireCounter==7) && (playerPosition[2] >= updatedPosition[2])) 
 			{
 				GLfloat targetDistance = Vertex(updatedPosition).getDistance(playerPosition);
-				if (targetDistance < 50.0)
+
+				if (friendList->size() > 0) //check to see if a friendly NPC presents a better target then the player; if so, attack it instead.
+				{
+					GLfloat *optimalFriendlyPosition;
+					GLfloat optimalFriendlyDistance = 999999.0;
+
+					for (std::list<NPC*>::iterator iter = friendList->begin(); iter != friendList->end(); iter++)
+					{
+						GLfloat *friendlyPosition = (*iter)->getShape()->getPosition();
+						GLfloat friendlyDistance = Vertex(friendlyPosition).getDistance(updatedPosition);
+
+						if (friendlyDistance < targetDistance && friendlyDistance < 50.0 && friendlyDistance < optimalFriendlyDistance)
+						{
+							optimalFriendlyDistance = friendlyDistance;
+							optimalFriendlyPosition = friendlyPosition;
+						}
+
+						if (optimalFriendlyDistance >= targetDistance) 
+						{
+							delete[] friendlyPosition;
+						}
+					}
+
+					if (optimalFriendlyDistance < targetDistance)
+					{
+						targetDistance = optimalFriendlyDistance;
+						playerPosition = optimalFriendlyPosition;
+					}
+				}
+
+				if (targetDistance < 50.0 && (this->iff == NPC_HOSTILE))
 				{
 					Shape *burst0;
 					burst0 = new Shape(SHAPE_CONE, 4, 4, 1.0, RED);
@@ -171,6 +214,53 @@ void NPC::update(GLfloat inc, std::deque<Projectile> *projectileList, GLfloat *p
 
 					delete tempFireVec;
 				}
+				else if (this->iff == NPC_FRIENDLY && (fireCounter == 0 || fireCounter == 7)) //FRIENDLY NPC firing code
+				{
+					NPC *optimalTarget;
+					GLfloat optimalTargetDistance = 999999.0;
+
+					for (std::list<NPC*>::iterator iter = hostileList->begin(); iter != hostileList->end(); iter++)
+					{
+						GLfloat *targetPosition = (*iter)->getShape()->getPosition();
+						GLfloat curDistanceToTarget = Vertex(targetPosition).getDistance(updatedPosition);
+
+						if ((curDistanceToTarget < 50.0) && (curDistanceToTarget < optimalTargetDistance) && (updatedPosition[2] > targetPosition[2]))
+						{
+							optimalTargetDistance = curDistanceToTarget;
+							optimalTarget = (*iter);
+						}
+
+						delete[] targetPosition;
+					}
+
+					if (optimalTargetDistance < 50.0)
+					{
+						Shape *friendlyBurst0;
+						friendlyBurst0 = new Shape(SHAPE_CONE, 4, 4, 1.0, YELLOW);
+						friendlyBurst0->tessellate();
+						friendlyBurst0->scale(.2, 1.6, .2);
+						friendlyBurst0->translate(updatedPosition[0], updatedPosition[1], updatedPosition[2]);
+						friendlyBurst0->revolve(90.0, 0, 0, 1);
+
+						GLfloat *optimalTargetPosition = optimalTarget->getShape()->getPosition();
+
+						//modify accuracy based on AI level...
+						optimalTargetPosition[0] += (rand() % (this->AI + 1));
+						optimalTargetPosition[1] += (rand() % (this->AI + 1));
+						optimalTargetPosition[2] += (rand() % (this->AI + 1));
+
+						vec3 friendlyFireVec = vec3(Vertex(optimalTargetPosition), Vertex(updatedPosition));
+						vec3 *tempFriendlyFireVec = friendlyFireVec.normalize();
+						friendlyFireVec = vec3(tempFriendlyFireVec->x, tempFriendlyFireVec->y, tempFriendlyFireVec->z);
+
+						printf("FRIENDLY NPC FIRING BURST; fireCounter = %d\n", fireCounter);
+
+						projectileList->push_front(Projectile(LASER_SPEED_SUPER_SLOW, &friendlyFireVec, friendlyBurst0, GL_FAR_CLIPPING_PLANE, 0));	
+
+						delete[] optimalTargetPosition;
+						delete tempFriendlyFireVec;						
+					}					
+				}
 			}
 			delete[] updatedPosition;
 			delete[] curPos;
@@ -179,13 +269,59 @@ void NPC::update(GLfloat inc, std::deque<Projectile> *projectileList, GLfloat *p
 		{
 			//printf("Path complete!\n");
 		}
+/*
+		for (std::list<NPC*>::iterator iter = friendList->begin(); iter != friendList->end(); iter++)
+		{
+			if ((*iter) != this)
+			{
+				GLfloat *npcPos = (*iter)->getShape()->getPosition();
+				GLfloat *thisPos = this->getShape()->getPosition();
+				GLfloat distanceToTarget = Vertex(npcPos).getDistance(thisPos);
+
+				if (distanceToTarget < 4.0)
+				{
+					if (npcPos[0] > thisPos[0]) //if npc is ahead of this npc
+					{
+						//this->adjustBearing(0.08);
+					}
+					else
+					{
+						//this->adjustBearing(-0.08);
+					}
+
+					if (npcPos[1] > thisPos[1])
+					{
+						//this->adjustAltitude(0.08);
+					}
+					else
+					{
+						//this->adjustAltitude(-0.08);
+					}
+
+					if (npcPos[2] > thisPos[2])
+					{
+						
+					}
+
+				}
+			}
+		}
+*/
 	}
 	else if (this->isDead==0) //WARNING! MEMORY LEAK!! need to delete the previous shape but it crashes.
 	{
 		*player_kills = (*player_kills + 1);
 
+		if (this->iff == NPC_FRIENDLY)
+		{
+			explosionWidthX *= 2;
+			explosionWidthY *= 2;
+			explosionWidthZ *= 2;
+		}
+
 		Shape3D *shpPtr = this->targetShape;
 		GLfloat *shapePos = this->targetShape->getPosition();
+
 		this->targetShape = new Sphere(1.0, 10, 10);
 		this->targetShape->local_translate(shapePos[0], shapePos[1], shapePos[2]);
 		this->targetShape->local_scale(explosionWidthX, explosionWidthY, explosionWidthZ);
@@ -193,7 +329,7 @@ void NPC::update(GLfloat inc, std::deque<Projectile> *projectileList, GLfloat *p
 
 		this->targetShape->draw(1);
 
-		isDead = 1;
+		this->isDead = 1;
 
 		//powerup drop code:
 		int powerUpRand = (rand() % POWERUP_DROP_FREQ_LOW);
@@ -259,6 +395,18 @@ GLfloat *NPC::getPosition()
 int NPC::getIFF() //friend or foe?
 {
 	return this->iff;
+}
+
+void NPC::adjustAltitude(float amt)
+{
+	this->getShape()->local_translate(0.0, amt, 0.0);
+	//this->getShape()->draw_mesh(GL_TRIANGLES, GL_FLAT);
+}
+
+void NPC::adjustBearing(float amt)
+{
+	this->getShape()->local_translate(amt, 0.0, 0.0);
+	//this->getShape()->draw_mesh(GL_TRIANGLES, GL_FLAT);
 }
 
 NPC::~NPC()

@@ -71,7 +71,7 @@ void Projectile::update()
 	glEnable(GL_LIGHTING);
 }
 
-void Projectile::update(std::list<NPC*>* targetList, GLfloat playerPos[3], float *playerHealth)
+void Projectile::update(std::list<NPC*>* targetList, GLfloat playerPos[3], float *playerHealth, std::list<NPC*> *friendList)
 {
 	GLfloat dX = (this->speed * vectorX);
 	GLfloat dY = (this->speed * vectorY);
@@ -121,6 +121,7 @@ void Projectile::update(std::list<NPC*>* targetList, GLfloat playerPos[3], float
 	else //test for hits on the PLAYER
 	{
 		Vertex playerPosition = Vertex(playerPos);
+
 		GLfloat *projectilePosition = new GLfloat[3];
 		projectilePosition[0] = this->positionX;
 		projectilePosition[1] = this->positionY;
@@ -134,9 +135,19 @@ void Projectile::update(std::list<NPC*>* targetList, GLfloat playerPos[3], float
 		}
 		else
 		{
-			//playerHit = 0;
-		}
+			//test for hits on FRIENDLY NPC!
+			for (std::list<NPC*>::iterator iter = friendList->begin(); iter != friendList->end(); iter++)
+			{
+				GLfloat *friendlyPosition = (*iter)->getShape()->getPosition();
 
+				if (Vertex(friendlyPosition).getDistance(projectilePosition) < 2.0)
+				{
+					(*iter)->health -= 0.0; //normally 0.02
+				}
+
+				delete[] friendlyPosition;
+			}
+		}
 		delete[] projectilePosition;
 	}
 }

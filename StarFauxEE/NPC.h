@@ -7,6 +7,7 @@
 
 //C++ headers
 #include <deque>
+#include <list>
 
 //C headers
 
@@ -57,7 +58,9 @@ public:
 	Shape3D *getShape(); //returns a pointer to the Shape object for this NPC
 	Path *getPath(); //returns a pointer to the Path object allocated for this NPC
 	GLfloat *getPosition();
-	void update(GLfloat, std::deque<Projectile>*, GLfloat*, int*, std::deque<PowerUp*>*); 
+	void update(GLfloat, std::deque<Projectile>*, GLfloat*, int*, std::deque<PowerUp*>*, std::list<NPC*>*, std::list<NPC*>*); 
+	void adjustAltitude(float);
+	void adjustBearing(float);
 	bool pathComplete;
 	int getIFF();
 	float health;

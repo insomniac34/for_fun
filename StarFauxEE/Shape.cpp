@@ -1030,9 +1030,8 @@ void Shape::revolve(GLfloat deg, GLfloat x, GLfloat y, GLfloat z)
 	GLdouble zval = position.z;
 	Vertex tempPos = Vertex(xval, yval, zval);
 
-	//Translate object to the origin via position negated
-	//if (this->getType()==SHAPE_CONE)printf("Revolving...x-axis = {%f, %f, %f}\n", curXAxis.x, curXAxis.y, curXAxis.z);
-	translate((-1*position.x), (-1*position.y), (-1*position.z));
+	if (this->getType()==SHAPE_CONE)printf("Revolving...x-axis = {%f, %f, %f}\n", curXAxis.x, curXAxis.y, curXAxis.z);
+	translate((-1*position.x), (-1*position.y), (-1*position.z)); //Translate object to the origin via position negated
 
 	for (int i = 0; i < vs; i++)
 	{
@@ -1288,7 +1287,7 @@ void Shape::arbitraryRotate(GLdouble deg, GLdouble ax, GLdouble ay, GLdouble az,
 	translate(cx, cy, cz);
 }
 
-//if a line originating at Peye and travelling in direction 'Pworld' intersects with this shape, return true, else return false
+//if a line originating at Peye and travelling in direction 'Pworld' intersects with this shape, return the 3d point of intersection
 GLdouble* Shape::isHit(Vertex Peye, Vertex dir) //if this shape is in the way of the passed-in ray return true; else return false
 {
 	//////////////////////Transform Ray Elements by CTM///////////////////////////
@@ -1765,7 +1764,7 @@ bool* Shape::fireRay(std::deque<Shape> *targetList, std::deque<Shape> *indicator
 				                                                                                 intersectResult[4], 
 				                                                                                 intersectResult[5]
 				      );
-
+	
 				indicatorList->push_front(Shape(SHAPE_SPHERE, 10.0, 10.0, 1.0, targetColor));
 				indicatorList->front().tessellate();
 				indicatorList->front().translate(intersectResult[0], intersectResult[1], intersectResult[2]);

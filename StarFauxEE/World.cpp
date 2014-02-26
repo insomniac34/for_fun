@@ -29,11 +29,13 @@
 #include "World.h"
 #include "config.h"			
 
-static std::string WINDOW_TITLE = "STAR FAUX ENHANCED EDITION (OpenGL)";
+//static std::string WINDOW_TITLE = "STAR FAUX ENHANCED EDITION (OpenGL)";
 
 static Light *light0;
 static Light *light1;
 static Light *light2;
+
+static bool ACTIVATE_CUTSCENE = false;
 
 static GLfloat GREEN[3] = {0.15, 0.5, 0.1};
 static GLfloat DARK_GREEN[3] = {0.0, 0.3, 0.0};
@@ -59,9 +61,15 @@ static GLfloat LIGHT_BLUE_3D[4] = {0.0, 0.4, 1.0, 1.0};
 static GLfloat BROWN_3D[4] = {.35, .30, .25, 1.0};
 static GLfloat WHITE_3D[4] = {1.0, 1.0, 1.0, 1.0};
 
+static char *arwingFile = "arwing.txt";
 static GLfloat playerSpeed = -0.4;
 static GLfloat playerAcceleration = -1.0;
 static GLfloat playerDeceleration = -0.1; 
+static GLfloat friendlySpeed = -0.4;
+static GLfloat hostileSpeed = 0.4;
+
+static GLfloat playerProximityBoost = 0.0;
+int boostFlag = 0;
 
 bool PAUSED = false;
 bool QUIT_GAME = false;
@@ -73,12 +81,19 @@ static std::deque<Shape*> dynamicSceneGraph;
 static std::deque<Billboard*> billboardList;
 static std::list<Shape3D*> staticSceneGraph; //global data structure of shapes NOT meant to be destroyed. Eventually im going to set it up to iterate over this list and destroy objects not in view.
 static std::list<NPC*> enemyList;
+static std::list<NPC*> friendList;
 static std::deque<Zone> areaList;
 static std::deque<Zone>::iterator zoneIterator;
 
 //POINTERS. Pointers, everywhere!
 static player* player1;
 static Camera *playerCam;
+
+static NPC *frog;
+static NPC *rabbit;
+static NPC *falco;
+static NPC *friendly;
+
 float cam_x = 0;
 float cam_y = 0;
 float cam_z = 15;
@@ -318,7 +333,7 @@ void glut_setup()
 {
 	glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH);
 	glutInitWindowSize(GL_WINDOW_WIDTH, GL_WINDOW_HEIGHT);
-	glutCreateWindow(WINDOW_TITLE.c_str());
+	glutCreateWindow("StarFaux (OpenGL)");
 
 	//party like it's 1999
 	glutDisplayFunc(gl_display);
@@ -391,7 +406,61 @@ void gl_setup(void)
 	player1 = new player();
 	player1->ship->world_translate(camPos[0], camPos[1]-1, camPos[2]-6);
 
-	delete[] camPos;	
+	Shape3D *frogArwing;
+	char mesh_file[50];
+	strcpy(mesh_file, arwingFile);
+	frogArwing = new Mesh();
+	frogArwing->load_mesh(mesh_file);
+
+	frogArwing->local_translate(
+		                        (camPos[0] - 5.0), 
+		                        (camPos[1] - 1), 
+		                        (camPos[2] - 9)
+		                       );
+
+	frogArwing->local_rotate_y(M_PI);
+	//frogArwing->local_rotate();
+
+	Path *frogPath = new Path(
+		                      Vertex(camPos[0] - 5.0, camPos[1] - 1.0, camPos[2] - 9), 
+		                      Vertex(camPos[0] - 5.0, camPos[1] - 1.0, (camPos[2] - 9) - 250.0)
+		                     );
+
+	frog = new NPC(
+		           NPC_FRIENDLY, 
+		           AI_DUMB, 
+		           frogArwing, 
+		           frogPath
+		          );
+
+	friendList.push_front(frog);
+
+
+
+	Shape3D *friendlyArwing;
+	//char mesh_file[50];
+	strcpy(mesh_file, arwingFile);
+	friendlyArwing = new Mesh();
+	friendlyArwing->load_mesh(mesh_file);
+
+	friendlyArwing->local_translate(	
+		                            (camPos[0] + 5.0), 
+		                            (camPos[1] + 1), 
+		                            (camPos[2] - 9)									
+								   );
+
+	friendlyArwing->local_rotate_y(M_PI);
+	//frogArwing->local_rotate();
+
+	Path *friendlyPath = new Path(
+		                          Vertex(camPos[0] + 5.0, camPos[1] + 1.0, camPos[2] - 9), 
+		                          Vertex(camPos[0] + 5.0, camPos[1] + 1.0, (camPos[2] - 9) - 248.0)
+		                         );
+
+	friendly = new NPC(NPC_FRIENDLY, AI_DUMB, friendlyArwing, friendlyPath);
+	//friendList.push_front(friendly);
+	
+	delete[] camPos;
 }
 
 void gl_display(void)
@@ -482,6 +551,10 @@ void gl_display(void)
 		if (!PAUSED) updatePowerUps();
 		glEnable(GL_LIGHTING);
 
+		if (!PAUSED)
+		{
+			updateFriendlies();
+		}
 
 		if(game_status != GAME_OVER)
 		{
@@ -496,6 +569,18 @@ void gl_display(void)
 			                                 playerSpeed, 
 			                                 player1->ship
 			                                );
+			if (ACTIVATE_CUTSCENE == true)
+			{
+				for(std::list<NPC*>::iterator iter = friendList.begin(); iter != friendList.end(); iter++)
+				{
+					playerCam->synchronizedTranslate(
+						                             0,
+					                                 0,
+					                                 playerSpeed, 
+					                                 (*iter)->getShape()
+					                                );					
+				}
+			}
 		}
 
 		drawTextures();
@@ -627,6 +712,17 @@ void gl_cleanup(void) //ALL HEAP DEALLOCATIONS SHOULD GO IN HERE -tyler
 		delete npcPtr;
 	}
 
+	for (std::list<NPC*>::iterator iter = friendList.begin(); iter != friendList.begin(); iter++)
+	{
+		Shape3D *sPtr = (*iter)->getShape();
+		Path *pPtr = (*iter)->getPath();
+		NPC *npcPtr = *iter;
+
+		delete sPtr;
+		delete pPtr;
+		delete npcPtr;		
+	}
+
 	delete playerCam;
 
 	delete light0;
@@ -639,6 +735,149 @@ static void gl_error(const char *msg)  //SCREAMS INTERNALLY
 	perror(msg);
 	atexit(gl_cleanup);
 	exit(-1);
+}
+
+void updateFriendlies()
+{
+	if (friendlySpeed < -1.0)
+	{
+		friendlySpeed -= FRIENDLY_ACCEL_RATE;
+	}
+	else if (friendlySpeed > 1.0)
+	{
+		friendlySpeed -= FRIENDLY_DECEL_RATE;
+	}
+
+	for(std::list<NPC*>::iterator iter = friendList.begin(); iter != friendList.end(); iter++)
+	{	
+		if ((*iter)->isDead == 0)
+		{
+			GLfloat *playerPos = player1->ship->getPosition();
+			GLfloat *npcPos = (*iter)->getShape()->getPosition();
+			GLfloat npcDistance = Vertex(npcPos).getDistance(playerPos);
+
+			if (npcDistance > 30.0)
+			{
+				friendlySpeed = -0.04;			
+			}
+			else if (npcDistance > 4.0)
+			{	
+				int speedFlag = 0;
+				if (npcPos[2] < playerPos[2]) //if friendly is ahead of player
+				{
+					//npc decelerate:
+					(*iter)->update(
+								    (friendlySpeed += (FRIENDLY_DECEL_RATE + playerProximityBoost)),
+								    &projectileList,
+								    playerPos,
+								    &enemies_killed,
+								    &(zoneIterator->powerUpList),
+								    &enemyList,
+								    &friendList
+						           );
+					printf("Distance: <%g> \nSpeed: <%g> \nproximity boost: <%g>\n", Vertex(npcPos).getDistance(playerPos), friendlySpeed, playerProximityBoost);
+					speedFlag = 1;
+				}
+				else if(npcPos[2] > playerPos[2]) //if friendly is behind player
+				{
+					//npc accelerate
+					(*iter)->update(
+								    (friendlySpeed -= (FRIENDLY_ACCEL_RATE + playerProximityBoost)),
+								    &projectileList,
+								    playerPos,
+								    &enemies_killed,
+								    &(zoneIterator->powerUpList),
+								    &enemyList,
+								    &friendList
+						           );
+					speedFlag = 1;	           					
+				}
+
+				if (npcPos[1] < playerPos[1]) //if friendly is higher than the player
+				{
+					//printf("INCREASING ALTITUDE!\n");
+					(*iter)->adjustAltitude(FRIENDLY_ALTITUDE_INCREASE_RATE - playerProximityBoost);
+				}
+				else if (npcPos[1] > playerPos[1])
+				{
+					//printf("DECREASING ALTITUDE!\n");
+					(*iter)->adjustAltitude(FRIENDLY_ALTITUDE_DECREASE_RATE + playerProximityBoost);
+				}
+
+				if (npcPos[0] < playerPos[0])
+				{
+					(*iter)->adjustBearing(FRIENDLY_X_DECREASE_RATE + playerProximityBoost);
+				}
+				else if (npcPos[0] > playerPos[0])
+				{
+					(*iter)->adjustBearing(FRIENDLY_X_INCREASE_RATE - playerProximityBoost);
+				}
+
+				//printf("moving friendly object %d with a speed of %g\n", (int)std::distance(friendList.begin(), iter), friendlySpeed);
+				if (speedFlag == 0)
+				{
+					(*iter)->update(
+								    friendlySpeed,
+								    &projectileList,
+								    playerPos,
+								    &enemies_killed,
+								    &(zoneIterator->powerUpList),
+								    &enemyList,
+								    &friendList
+						           );		
+				}
+
+				if (playerProximityBoost > 0.0)
+				{
+					if (boostFlag > 5)
+					{
+						playerProximityBoost = 0.0; //reset proximity boost
+						boostFlag = 0;
+					}
+					else
+					{
+						boostFlag++;	
+					}
+				}		           											
+			}
+			else
+			{
+				playerProximityBoost = 0.02;
+				if (npcPos[1] < playerPos[1]) //if friendly is higher than the player
+				{
+					//printf("INCREASING ALTITUDE!\n");
+					(*iter)->adjustAltitude(-0.08);
+				}
+				else if (npcPos[1] > playerPos[1])
+				{
+					//printf("DECREASING ALTITUDE!\n");
+					(*iter)->adjustAltitude(0.08);
+				}
+
+				if (npcPos[0] < playerPos[0])
+				{
+					(*iter)->adjustBearing(0.08);
+				}
+				else if (npcPos[0] > playerPos[0])
+				{
+					(*iter)->adjustBearing(-0.08);
+				}
+
+				(*iter)->update(
+							    friendlySpeed,
+							    &projectileList,
+							    playerPos,
+							    &enemies_killed,
+							    &(zoneIterator->powerUpList),
+							    &enemyList,
+							    &friendList
+					           );
+			}
+
+			delete[] playerPos;
+			delete[] npcPos;
+		}
+	}
 }
 
 void checkTriggers() //handles when to spawn an enemy
@@ -677,20 +916,20 @@ void checkTriggers() //handles when to spawn an enemy
 				//calculate path layout:
 				Vertex *waypointList = new Vertex[3];
 				if (xRand==1 && yRand==1) waypointList[0] = Vertex(
-					                                               iter->offset.x+10.0, 
-					                                               iter->offset.y+10.0, 
+					                                               iter->offset.x + 10.0, 
+					                                               iter->offset.y + 10.0, 
 					                                               iter->offset.z + 25.0
 					                                              );
 
 				else if (xRand==1) waypointList[0] = Vertex(
-					                                        iter->offset.x+10.0, 
-															iter->offset.y-10.0, 
+					                                        iter->offset.x + 10.0, 
+															iter->offset.y - 10.0, 
 															iter->offset.z + 25.0
 														   );
 
 				else if (yRand==1) waypointList[0] = Vertex(
-					                                        iter->offset.x-10.0, 
-					                                        iter->offset.y+10.0, 
+					                                        iter->offset.x - 10.0, 
+					                                        iter->offset.y + 10.0, 
 					                                        iter->offset.z + 25.0
 					                                       );
 
@@ -773,6 +1012,7 @@ void drawBillboards()
 
 void animateProjectiles()
 {
+/*
 	for (std::deque<Projectile>::iterator iter = projectileList.begin(); iter != projectileList.end(); iter++)
 	{
 		if(!PAUSED)
@@ -786,7 +1026,8 @@ void animateProjectiles()
 			iter->update(
 				         &enemyList, 
 				         playerPos, 
-				         &(player1->health)
+				         &(player1->health),
+				         &friendList
 				        );
 		}
 		else
@@ -794,6 +1035,34 @@ void animateProjectiles()
 			iter->target->draw(GL_QUADS);
 		}
 	}
+*/
+
+	std::transform(
+				   projectileList.begin(), projectileList.end(), projectileList.begin(), [](Projectile iter) mutable -> Projectile
+				   {
+				       if (!PAUSED)
+					   {
+					       GLfloat playerPos[3] = {
+								       			   player1->ship->local_p[0], 
+											       player1->ship->local_p[1], 
+										     	   player1->ship->local_p[2]
+								   			      };
+						   iter.update(
+					        		   &enemyList, 
+					         		   playerPos, 
+					                   &(player1->health),
+					         		   &friendList
+					        		  );		   			   
+						}
+						else
+						{
+							iter.target->draw(GL_QUADS);
+						}	 
+
+						return iter;
+				  	}
+				   );
+
 }
 
 void moveCamera(GLfloat xSpeed, GLfloat ySpeed, GLfloat zSpeed)
@@ -811,7 +1080,6 @@ void turnCamera(GLfloat deg, int x, int y, int z)
 
 void spawnEnemy(GLdouble *loc) //Note: MULTIPLE NPC OBJECTS CAN NOT SHARE THE SAME PATH OR MODEL/SHAPE; each must be distinct to avoid crash/memleak on exit.
 {
-
 	Shape3D *hostile0_obj;
 	char mesh_file[50];
 	strcpy(mesh_file, "arwing.txt");
@@ -842,7 +1110,7 @@ void NPCupdate()
 
 	for (std::list<NPC*>::iterator iter = enemyList.begin(); iter != enemyList.end(); iter++)
 	{
-		if(PAUSED)
+		if (PAUSED)
 		{
 			if((*iter)->isDead == 1)
 			{
@@ -860,10 +1128,12 @@ void NPCupdate()
 				           	&projectileList, 
 				           	playerPos, 
 				           	&enemies_killed,
-				           	&(zoneIterator->powerUpList)
+				           	&(zoneIterator->powerUpList),
+				           	&enemyList,
+				           	&friendList
 				           );
 		}
-	}
+	}	
 
 	delete[] playerPos;
 }
@@ -874,6 +1144,7 @@ void animateThrusters() //draw "flames" on back end of Arwing
 	playerPos[0] = player1->ship->local_p[0];
 	playerPos[1] = player1->ship->local_p[1];
 	playerPos[2] = player1->ship->local_p[2];
+
 	float randX = (rand() % 100)/100.0;
 	float randY = (rand() % 100)/100.0;
 	
@@ -891,8 +1162,8 @@ void animateThrusters() //draw "flames" on back end of Arwing
 			dynamicSceneGraph.pop_back();
 			delete sPtr;
 		}
+
 		dynamicSceneGraph.push_front(thruster);
-		
 		thrustFlag ++;
 	}
 	else
@@ -908,8 +1179,8 @@ void animateThrusters() //draw "flames" on back end of Arwing
 			dynamicSceneGraph.pop_back();
 			delete sPtr;
 		}
-		dynamicSceneGraph.push_front(thruster);
 
+		dynamicSceneGraph.push_front(thruster);
 		thrustFlag ++;
 	}
 
@@ -931,10 +1202,10 @@ void realTimeCleanup() //dynamic memory management system
 			delete sPtr;
 		}
 	}
-	if (dynamicSceneGraph.size() > 25)
+	if (dynamicSceneGraph.size() > 40) //originally 25
 	{
 		//printf("\n***25 temp object limit exceeded. Initiating automated cleanup subroutine.***\n");
-		for (int i = 25; i > 5; i--)
+		for (int i = 40; i > 5; i--)
 		{
 			Shape *sPtr = dynamicSceneGraph.back();
 			dynamicSceneGraph.pop_back();
@@ -943,7 +1214,7 @@ void realTimeCleanup() //dynamic memory management system
 	}
 	for (std::deque<Billboard*>::iterator iter = billboardList.begin(); iter != billboardList.end(); iter++) //iterates over the general object list and calls draw() on each one
 	{
-		if((*iter)->local_p[2] > cam_z)
+		if ((*iter)->local_p[2] > cam_z)
 		{
 			delete *iter;
 		}
@@ -968,15 +1239,17 @@ void playerFire() //weapons code
 			while (targetIterator != enemyList.end())
 			{
 				GLfloat *targetPosition = (*targetIterator)->getShape()->getPosition();
-				if ((Vertex(targetPosition).getDistance(camPos) < AUTO_TARGET_RANGE) && (targetPosition[2] < camPos[2]))
+				if ((Vertex(targetPosition).getDistance(camPos) < AUTO_TARGET_RANGE) && (targetPosition[2] < camPos[2]) && (*targetIterator)->getIFF() != NPC_FRIENDLY)
 				{
 					//target is close, auto-lock engaged!
 					printf("ENGAGING AUTO TARGET!\n");
 					lockCount++;
+
 					camLook = new GLdouble[3];
 					camLook[0] = (GLdouble)targetPosition[0];
 					camLook[1] = (GLdouble)targetPosition[1];
 					camLook[2] = (GLdouble)targetPosition[2];
+
 					delete[] targetPosition;
 					break;
 				}
@@ -2378,8 +2651,16 @@ void worldRedraw() //called several times through each level; deletes all scene 
 	
 	//STEP 3: warp player back to start
 	playerCam->synchronizedTranslate(0.0, 0.0, 250.0, player1->ship);
+
+	//STEP 4: warp friendly(s) back to start
+	for (std::list<NPC*>::iterator iter = friendList.begin(); iter != friendList.end(); iter++)
+	{
+		GLfloat *friendlyPosition = (*iter)->getShape()->getPosition();
+		(*iter)->getShape()->world_translate(friendlyPosition[0], friendlyPosition[1], 250.0);
+		delete[] friendlyPosition;
+	}
 	
-	//STEP 4: increment global zone pointer
+	//STEP 5: increment global zone pointer
 	if (zoneIterator != areaList.end())
 	{
 		zoneIterator++;	

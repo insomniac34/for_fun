@@ -53,7 +53,11 @@ vec3::vec3(vec3 v, GLdouble M[4][4])
 //public methods:
 GLdouble vec3::dot(vec3 v)
 {
-	return ((this->x * v.x) + (this->y * v.y) + (this->z * v.z));
+	return (
+		    (this->x * v.x) + 
+		    (this->y * v.y) + 
+		    (this->z * v.z)
+		   );
 }
 
 vec3* vec3::cross(vec3 v)
